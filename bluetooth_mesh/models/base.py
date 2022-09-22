@@ -274,6 +274,7 @@ class Model:
         :param params: Message parameters.
         """
 
+        self.logger.debug("Building message with parameters: %s" % params)
         data = AccessMessage.build(dict(opcode=opcode, params=params))
 
         message = AccessMessage.parse(data)
@@ -326,6 +327,7 @@ class Model:
         """
 
         remote = True
+        self.logger.debug("Building message with parameters: %s" % params)
         data = AccessMessage.build(dict(opcode=opcode, params=params))
 
         message = AccessMessage.parse(data)
@@ -365,8 +367,8 @@ class Model:
         request: Callable[[], Awaitable[None]],
         status: asyncio.Future,
         *,
-        send_interval: float = 0.2,
-        timeout: float = 2.0,
+        send_interval: float = 1.0,
+        timeout: float = 5.0,
     ) -> Any:
         """
         Query
