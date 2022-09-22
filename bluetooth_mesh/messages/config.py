@@ -852,7 +852,7 @@ ConfigModelPublicationSet = Struct(
     "publish_address" / NotVirtualLabel,
     *EmbeddedBitStruct(
         "_",
-        "rfu" / BitsInteger(3),
+        "RFU" / BitsInteger(3),
         "credential_flag" / PublishFriendshipCredentialsFlagAdapter,
         "app_key_index" / BitsInteger(12),
         reversed=True
@@ -873,7 +873,7 @@ ConfigModelPublicationVASet = Struct(
     "publish_address" / Bytes(16),
     *EmbeddedBitStruct(
         "_",
-        "rfu" / BitsInteger(3),
+        "RFU" / BitsInteger(3),
         "credential_flag" / PublishFriendshipCredentialsFlagAdapter,
         "app_key_index" / BitsInteger(12),
         reversed=True

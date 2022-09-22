@@ -248,7 +248,7 @@ class ConfigClient(Model):
         )
 
         return {
-            node: None if isinstance(result, Exception) else result[params_name]
+            node: None if isinstance(result, BaseException) else result[params_name]
             for node, result in results.items()
         }
 
@@ -315,6 +315,41 @@ class ConfigClient(Model):
             progress_callback=progress_callback,
             timeout=timeout or 2 * send_interval * len(nodes),
         )
+
+    async def set_relay(
+        self,
+        destination: int,
+        net_index: int,
+        relay: bool,
+        retransmit_count: int = 0,
+        retransmit_interval: int = 10,
+    ) -> None:
+        status_opcode = ConfigOpcode.CONFIG_RELAY_STATUS
+
+        status = self.expect_dev(
+            destination,
+            net_index=net_index,
+            opcode=status_opcode,
+            params=dict(
+                relay=relay,
+                retransmit=dict(count=retransmit_count, interval=retransmit_interval),
+            ),
+        )
+
+        request = partial(
+            self.send_dev,
+            destination,
+            net_index=net_index,
+            opcode=ConfigOpcode.CONFIG_RELAY_SET,
+            params=dict(
+                relay=relay,
+                retransmit=dict(count=retransmit_count, interval=retransmit_interval),
+            ),
+        )
+
+        status = await self.query(request, status)
+
+        return None
 
     async def get_key_refresh_phase(
         self,
@@ -443,7 +478,7 @@ class ConfigClient(Model):
             ),
         )
 
-        status = await self.query(request, status)
+        status = await self.query(request, status, send_interval=5.0, timeout=60.0)
 
         if status[params_name]["status"] != StatusCode.SUCCESS:
             raise ModelOperationError("Cannot add app key", status)
@@ -568,7 +603,7 @@ class ConfigClient(Model):
             ),
         )
 
-        status = await self.query(request, status)
+        status = await self.query(request, status, timeout=30)
 
         if status[params_name]["status"] != StatusCode.SUCCESS:
             raise ModelOperationError("Cannot bind app key", status)
@@ -939,7 +974,7 @@ class ConfigClient(Model):
             ),
         )
 
-        status = await self.query(request, status, send_interval=0.2, timeout=4)
+        status = await self.query(request, status, send_interval=1.0, timeout=10)
 
         if status[params_name]["status"] != StatusCode.SUCCESS:
             raise ModelOperationError("Cannot add subscription", status)
@@ -1001,6 +1036,62 @@ class ConfigClient(Model):
 
         return status[status_opcode.name.lower()]["beacon"]
 
+    async def node_reset(
+        self,
+        destination: int,
+        net_index: int,
+    ) -> None:
+        status_opcode = ConfigOpcode.CONFIG_NODE_RESET_STATUS
+
+        status = self.expect_dev(
+            destination,
+            net_index=net_index,
+            opcode=status_opcode,
+            params=dict(),
+        )
+
+        request = partial(
+            self.send_dev,
+            destination,
+            net_index=net_index,
+            opcode=ConfigOpcode.CONFIG_NODE_RESET,
+            params=dict(),
+        )
+
+        status = await self.query(request, status)
+
+        return None
+
+    async def set_friend(
+        self,
+        destination: int,
+        net_index: int,
+        friend: bool
+    ) -> None:
+        status_opcode = ConfigOpcode.CONFIG_FRIEND_STATUS
+
+        status = self.expect_dev(
+            destination,
+            net_index=net_index,
+            opcode=status_opcode,
+            params=dict(
+                friend=friend
+            ),
+        )
+
+        request = partial(
+            self.send_dev,
+            destination,
+            net_index=net_index,
+            opcode=ConfigOpcode.CONFIG_FRIEND_SET,
+            params=dict(
+                friend=friend
+            ),
+        )
+
+        status = await self.query(request, status)
+
+        return None
 
 class HealthServer(Model):
     MODEL_ID = (None, 0x0002)
@@ -1147,7 +1238,7 @@ class DebugClient(Model):
         )
 
         return {
-            node: None if isinstance(result, Exception) else result[params_name]["data"]
+            node: None if isinstance(result, BaseException) else result[params_name]["data"]
             for node, result in results.items()
         }
 
@@ -1266,7 +1357,7 @@ class DebugClient(Model):
 
         return {
             node: None
-            if isinstance(result, Exception)
+            if isinstance(result, BaseException)
             else result[status_opcode.name.lower()]["data"]
             for node, result in results.items()
         }
@@ -1429,7 +1520,7 @@ class GenericOnOffClient(Model):
 
         return {
             node: None
-            if isinstance(result, Exception)
+            if isinstance(result, BaseException)
             else result[status_opcode.name.lower()]
             for node, result in results.items()
         }
@@ -1523,7 +1614,7 @@ class SceneClient(Model):
 
         return {
             node: None
-            if isinstance(result, Exception)
+            if isinstance(result, BaseException)
             else result[status_opcode.name.lower()]
             for node, result in results.items()
         }
@@ -1719,7 +1810,7 @@ class LightLightnessClient(Model):
 
         return {
             node: None
-            if isinstance(result, Exception)
+            if isinstance(result, BaseException)
             else result[status_opcode.name.lower()]
             for node, result in results.items()
         }
@@ -1765,7 +1856,7 @@ class LightLightnessClient(Model):
 
         return {
             node: None
-            if isinstance(result, Exception)
+            if isinstance(result, BaseException)
             else result[status_opcode.name.lower()]
             for node, result in results.items()
         }
@@ -1848,7 +1939,7 @@ class LightLightnessClient(Model):
 
         return {
             node: None
-            if isinstance(result, Exception)
+            if isinstance(result, BaseException)
             else result[status_opcode.name.lower()]
             for node, result in results.items()
         }
@@ -1906,7 +1997,7 @@ class SensorClient(Model):
 
         return {
             node: None
-            if isinstance(result, Exception)
+            if isinstance(result, BaseException)
             else result[status_opcode.name.lower()]
             for node, result in results.items()
         }
@@ -1952,9 +2043,18 @@ class SensorClient(Model):
         )
 
         return {
-            node: None if isinstance(result, Exception) else result[status.name.lower()]
+            node: None if isinstance(result, BaseException) else result[status.name.lower()]
             for node, result in results.items()
         }
+
+
+class LightCTLServer(Model):
+    MODEL_ID = (None, 0x1303)
+    OPCODES = {
+        # TODO
+    }
+    PUBLISH = True
+    SUBSCRIBE = True
 
 
 class LightCTLClient(Model):
@@ -2017,7 +2117,7 @@ class LightCTLClient(Model):
 
         return {
             node: None
-            if isinstance(result, Exception)
+            if isinstance(result, BaseException)
             else result[status_opcode.name.lower()]
             for node, result in results.items()
         }
@@ -2066,10 +2166,45 @@ class LightCTLClient(Model):
 
         return {
             node: None
-            if isinstance(result, Exception)
+            if isinstance(result, BaseException)
             else result[status_opcode.name.lower()]
             for node, result in results.items()
         }
+
+    async def set_ctl_unack(
+        self,
+        destination: int,
+        app_index: int,
+        ctl_temperature: int,
+        ctl_lightness: int,
+        *,
+        delay: float = 0.5,
+        retransmissions: int = 6,
+        send_interval: float = 0.075,
+    ) -> None:
+        tid = self.tid()
+        remaining_delay = delay
+
+        async def request():
+            nonlocal remaining_delay
+            ret = self.send_app(
+                destination,
+                app_index=app_index,
+                opcode=LightCTLOpcode.LIGHT_CTL_SET_UNACKNOWLEDGED,
+                params=dict(
+                    ctl_temperature=ctl_temperature, 
+                    ctl_lightness=ctl_lightness,
+                    ctl_delta_uv=0, 
+                    tid=tid,
+                ),
+            )
+            remaining_delay = max(0.0, remaining_delay - send_interval)
+
+            return await ret
+
+        await self.repeat(
+            request, retransmissions=retransmissions, send_interval=send_interval
+        )
 
 
 class GatewayConfigServer(Model):
@@ -2538,7 +2673,7 @@ class LightExtendedControllerSetupClient(Model):
 
         return {
             node: None
-            if isinstance(result, Exception)
+            if isinstance(result, BaseException)
             else result[params_name]["payload"]["value"]
             for node, result in results.items()
         }
@@ -2646,7 +2781,7 @@ class TimeClient(Model):
 
         return {
             node: None
-            if isinstance(result, Exception)
+            if isinstance(result, BaseException)
             else result[status_opcode.name.lower()]
             for node, result in results.items()
         }
@@ -2687,7 +2822,7 @@ class TimeClient(Model):
 
         return {
             node: None
-            if isinstance(result, Exception)
+            if isinstance(result, BaseException)
             else result[status_opcode.name.lower()]
             for node, result in results.items()
         }
@@ -2737,7 +2872,7 @@ class TimeClient(Model):
 
         return {
             node: None
-            if isinstance(result, Exception)
+            if isinstance(result, BaseException)
             else result[status_opcode.name.lower()]
             for node, result in results.items()
         }
@@ -2776,7 +2911,7 @@ class TimeClient(Model):
 
         return {
             node: None
-            if isinstance(result, Exception)
+            if isinstance(result, BaseException)
             else result[status_opcode.name.lower()]
             for node, result in results.items()
         }
