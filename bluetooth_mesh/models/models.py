@@ -1062,21 +1062,14 @@ class ConfigClient(Model):
 
         return None
 
-    async def set_friend(
-        self,
-        destination: int,
-        net_index: int,
-        friend: bool
-    ) -> None:
+    async def set_friend(self, destination: int, net_index: int, friend: bool) -> None:
         status_opcode = ConfigOpcode.CONFIG_FRIEND_STATUS
 
         status = self.expect_dev(
             destination,
             net_index=net_index,
             opcode=status_opcode,
-            params=dict(
-                friend=friend
-            ),
+            params=dict(friend=friend),
         )
 
         request = partial(
@@ -1084,14 +1077,13 @@ class ConfigClient(Model):
             destination,
             net_index=net_index,
             opcode=ConfigOpcode.CONFIG_FRIEND_SET,
-            params=dict(
-                friend=friend
-            ),
+            params=dict(friend=friend),
         )
 
         status = await self.query(request, status)
 
         return None
+
 
 class HealthServer(Model):
     MODEL_ID = (None, 0x0002)
@@ -1238,7 +1230,9 @@ class DebugClient(Model):
         )
 
         return {
-            node: None if isinstance(result, BaseException) else result[params_name]["data"]
+            node: None
+            if isinstance(result, BaseException)
+            else result[params_name]["data"]
             for node, result in results.items()
         }
 
@@ -2043,7 +2037,9 @@ class SensorClient(Model):
         )
 
         return {
-            node: None if isinstance(result, BaseException) else result[status.name.lower()]
+            node: None
+            if isinstance(result, BaseException)
+            else result[status.name.lower()]
             for node, result in results.items()
         }
 
@@ -2075,6 +2071,52 @@ class LightCTLClient(Model):
     }
     PUBLISH = True
     SUBSCRIBE = True
+
+    async def get_light_temperature_range(
+        self,
+        nodes: Sequence[int],
+        app_index: int,
+        *,
+        send_interval: float = 0.1,
+        timeout: Optional[float] = None,
+    ) -> Dict[int, Optional[Any]]:
+        requests = {
+            node: partial(
+                self.send_app,
+                node,
+                app_index=app_index,
+                opcode=LightCTLOpcode.LIGHT_CTL_TEMPERATURE_RANGE_GET,
+                params=dict(),
+            )
+            for node in nodes
+        }
+
+        status_opcode = LightCTLOpcode.LIGHT_CTL_TEMPERATURE_RANGE_STATUS
+
+        statuses = {
+            node: self.expect_app(
+                node,
+                app_index=0,
+                destination=None,
+                opcode=status_opcode,
+                params=dict(),
+            )
+            for node in nodes
+        }
+
+        results = await self.bulk_query(
+            requests,
+            statuses,
+            send_interval=send_interval,
+            timeout=timeout or len(nodes) * 0.5,
+        )
+
+        return {
+            node: None
+            if isinstance(result, BaseException)
+            else result[status_opcode.name.lower()]
+            for node, result in results.items()
+        }
 
     async def get_ctl(
         self,
@@ -2177,6 +2219,7 @@ class LightCTLClient(Model):
         app_index: int,
         ctl_temperature: int,
         ctl_lightness: int,
+        ctl_delta_uv: int = 0,
         *,
         delay: float = 0.5,
         retransmissions: int = 6,
@@ -2192,9 +2235,9 @@ class LightCTLClient(Model):
                 app_index=app_index,
                 opcode=LightCTLOpcode.LIGHT_CTL_SET_UNACKNOWLEDGED,
                 params=dict(
-                    ctl_temperature=ctl_temperature, 
+                    ctl_temperature=ctl_temperature,
                     ctl_lightness=ctl_lightness,
-                    ctl_delta_uv=0, 
+                    ctl_delta_uv=ctl_delta_uv,
                     tid=tid,
                 ),
             )
