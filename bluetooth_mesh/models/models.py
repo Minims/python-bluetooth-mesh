@@ -1432,7 +1432,7 @@ class GenericOnOffClient(Model):
             return await ret
 
         status = await self.query(
-            request, status, send_interval=send_interval, timeout=1
+            request, status, send_interval=send_interval, timeout=None
         )
 
         return status[status_opcode.name.lower()]["present_onoff"]
