@@ -1240,7 +1240,9 @@ class DebugClient(Model):
         )
 
         return {
-            node: None if isinstance(result, BaseException) else result[params_name]["data"]
+            node: None
+            if isinstance(result, BaseException)
+            else result[params_name]["data"]
             for node, result in results.items()
         }
 
@@ -1440,7 +1442,7 @@ class GenericOnOffClient(Model):
             return await ret
 
         status = await self.query(
-            request, status, send_interval=send_interval, timeout=1
+            request, status, send_interval=send_interval, timeout=None
         )
 
         return status[status_opcode.name.lower()]["present_onoff"]
@@ -2045,7 +2047,9 @@ class SensorClient(Model):
         )
 
         return {
-            node: None if isinstance(result, BaseException) else result[status.name.lower()]
+            node: None
+            if isinstance(result, BaseException)
+            else result[status.name.lower()]
             for node, result in results.items()
         }
 
@@ -2077,6 +2081,52 @@ class LightCTLClient(Model):
     }
     PUBLISH = True
     SUBSCRIBE = True
+
+    async def get_light_temperature_range(
+        self,
+        nodes: Sequence[int],
+        app_index: int,
+        *,
+        send_interval: float = 0.1,
+        timeout: Optional[float] = None,
+    ) -> Dict[int, Optional[Any]]:
+        requests = {
+            node: partial(
+                self.send_app,
+                node,
+                app_index=app_index,
+                opcode=LightCTLOpcode.LIGHT_CTL_TEMPERATURE_RANGE_GET,
+                params=dict(),
+            )
+            for node in nodes
+        }
+
+        status_opcode = LightCTLOpcode.LIGHT_CTL_TEMPERATURE_RANGE_STATUS
+
+        statuses = {
+            node: self.expect_app(
+                node,
+                app_index=0,
+                destination=None,
+                opcode=status_opcode,
+                params=dict(),
+            )
+            for node in nodes
+        }
+
+        results = await self.bulk_query(
+            requests,
+            statuses,
+            send_interval=send_interval,
+            timeout=timeout or len(nodes) * 0.5,
+        )
+
+        return {
+            node: None
+            if isinstance(result, BaseException)
+            else result[status_opcode.name.lower()]
+            for node, result in results.items()
+        }
 
     async def get_ctl(
         self,
@@ -3033,7 +3083,127 @@ class LightHSLClient(Model):
 
         return {
             node: None
-            if isinstance(result, Exception)
+            if isinstance(result, BaseException)
+            else result[status_opcode.name.lower()]
+            for node, result in results.items()
+        }
+
+
+class LightHSLServer(Model):
+    MODEL_ID = (None, 0x1307)
+
+    # Does not include the generic opcodes associated with the Main, Hue and Saturation
+    # models.
+    OPCODES = {
+        LightHSLOpcode.LIGHT_HSL_GET,
+        LightHSLOpcode.LIGHT_HSL_SET,
+        LightHSLOpcode.LIGHT_HSL_SET_UNACKNOWLEDGED,
+        LightHSLOpcode.LIGHT_HSL_STATUS,
+        LightHSLOpcode.LIGHT_HSL_TARGET_GET,
+        LightHSLOpcode.LIGHT_HSL_TARGET_STATUS,
+        LightHSLOpcode.LIGHT_HSL_DEFAULT_GET,
+        LightHSLOpcode.LIGHT_HSL_DEFAULT_STATUS,
+        LightHSLOpcode.LIGHT_HSL_RANGE_GET,
+        LightHSLOpcode.LIGHT_HSL_RANGE_STATUS,
+        LightHSLOpcode.LIGHT_HSL_HUE_GET,
+        LightHSLOpcode.LIGHT_HSL_HUE_SET,
+        LightHSLOpcode.LIGHT_HSL_HUE_SET_UNACKNOWLEDGED,
+        LightHSLOpcode.LIGHT_HSL_HUE_STATUS,
+        LightHSLOpcode.LIGHT_HSL_SATURATION_GET,
+        LightHSLOpcode.LIGHT_HSL_SATURATION_SET,
+        LightHSLOpcode.LIGHT_HSL_SATURATION_SET_UNACKNOWLEDGED,
+        LightHSLOpcode.LIGHT_HSL_SATURATION_STATUS
+    }
+    PUBLISH = True
+    SUBSCRIBE = True
+
+
+class LightHSLSetupServer(Model):
+    MODEL_ID = (None, 1308)
+
+    OPCODES = {
+        LightHSLSetupOpcode.LIGHT_HSL_DEFAULT_SET,
+        LightHSLSetupOpcode.LIGHT_HSL_DEFAULT_SET_UNACKNOWLEDGED,
+        LightHSLSetupOpcode.LIGHT_HSL_RANGE_SET,
+        LightHSLSetupOpcode.LIGHT_HSL_RANGE_SET_UNACKNOWLEDGED,
+    }
+
+    SUBSCRIBE = True
+
+
+class LightHSLClient(Model):
+    MODEL_ID = (None, 0x1309)
+    
+    # Commented opcodes are part of the model specification but unimplemented.
+    OPCODES = {
+        #LightHSLOpcode.LIGHT_HSL_GET,
+        #LightHSLOpcode.LIGHT_HSL_SET,
+        #LightHSLOpcode.LIGHT_HSL_SET_UNACKNOWLEDGED,
+        #LightHSLOpcode.LIGHT_HSL_STATUS,
+        #LightHSLOpcode.LIGHT_HSL_TARGET_GET,
+        #LightHSLOpcode.LIGHT_HSL_TARGET_STATUS,
+        #LightHSLOpcode.LIGHT_HSL_DEFAULT_GET,
+        #LightHSLSetupOpcode.LIGHT_HSL_DEFAULT_SET,
+        #LightHSLSetupOpcode.LIGHT_HSL_DEFAULT_SET_UNACKNOWLEDGED,
+        #LightHSLOpcode.LIGHT_HSL_DEFAULT_STATUS,
+        #LightHSLOpcode.LIGHT_HSL_RANGE_GET,
+        #LightHSLSetupOpcode.LIGHT_HSL_RANGE_SET,
+        #LightHSLSetupOpcode.LIGHT_HSL_RANGE_SET_UNACKNOWLEDGED,
+        #LightHSLOpcode.LIGHT_HSL_RANGE_STATUS,
+        LightHSLOpcode.LIGHT_HSL_HUE_GET,
+        #LightHSLOpcode.LIGHT_HSL_HUE_SET,
+        LightHSLOpcode.LIGHT_HSL_HUE_SET_UNACKNOWLEDGED,
+        LightHSLOpcode.LIGHT_HSL_HUE_STATUS,
+        #LightHSLOpcode.LIGHT_HSL_SATURATION_GET,
+        #LightHSLOpcode.LIGHT_HSL_SATURATION_SET,
+        #LightHSLOpcode.LIGHT_HSL_SATURATION_SET_UNACKNOWLEDGED,
+        #LightHSLOpcode.LIGHT_HSL_SATURATION_STATUS
+    }
+    PUBLISH = True
+    SUBSCRIBE = True
+
+    async def get_hue(
+        self,
+        nodes: Sequence[int],
+        app_index: int,
+        *,
+        send_interval: float = 0.1,
+        timeout: Optional[float] = None,
+    ) -> Dict[int, Optional[Any]]:
+        requests = {
+            node: partial(
+                self.send_app,
+                node,
+                app_index=app_index,
+                opcode=LightHSLOpcode.LIGHT_HSL_HUE_GET,
+                params=()
+            )
+            for node in nodes
+        }
+
+        status_opcode = LightHSLOpcode.LIGHT_HSL_HUE_STATUS
+
+        statuses = {
+            node: self.expect_app(
+                node,
+                app_index=0,
+                destination=None,
+                opcode=status_opcode,
+                params=dict()
+            )
+            for node in nodes
+        }
+
+        results = await self.bulk_query(
+            requests,
+            statuses,
+            send_interval=send_interval,
+            timeout=timeout or len(nodes) * 0.5,
+        )
+
+        return {
+            node: None
+            if isinstance(result, BaseException)
             else result[status_opcode.name.lower()]
             for node, result in results.items()
         }
