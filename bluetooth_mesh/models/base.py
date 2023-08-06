@@ -20,6 +20,7 @@
 #
 #
 import asyncio
+from functools import partial
 import inspect
 from collections import defaultdict
 from contextlib import suppress
@@ -547,6 +548,68 @@ class Model:
         """
 
         return await self.element.application.bind_app_key(app_key_index, model=self)
+    
+    async def send_message_receive_response(
+        self,
+        nodes: Sequence[int],
+        app_index: int,
+        get_opcode: int,
+        status_opcode: int,
+        *,
+        params: dict = dict(),
+        send_interval: float = 0.1,
+        timeout: Optional[float] = None,
+    ) -> Dict[int, Optional[Any]]:
+        """
+        Send a message to nodes and return their responses.
+
+        :param nodes:
+        :param app_index:
+        :param get_opcode: The opcode encoding the message to be sent to the node.
+        :param status_opcode: The opcode representing the anticipated response from the node.
+        :param send_interval:
+        :param timeout:
+        :param params: The parameters required by the message represented by `get_opcode`.
+
+        :return: A dictionary with the node IDs as the keys and the recieved responses as the values.
+
+        """
+
+        requests = {
+            node: partial(
+                self.send_app,
+                node,
+                app_index=app_index,
+                opcode=get_opcode,
+                params=params
+            )
+            for node in nodes
+        }
+
+        statuses = {
+            node: self.expect_app(
+                node,
+                app_index=0,
+                destination=None,
+                opcode=status_opcode,
+                params=dict()
+            )
+            for node in nodes
+        }
+
+        results = await self.bulk_query(
+            requests,
+            statuses,
+            send_interval=send_interval,
+            timeout=timeout or len(nodes) * 0.5,
+        )
+
+        return {
+            node: None
+            if isinstance(result, Exception)
+            else result[status_opcode.name.lower()]
+            for node, result in results.items()
+        }
 
 
 class ModelConfig:
